@@ -88,4 +88,36 @@ class QueueTests {
         assertEquals((NVALUES * n), consumedValues.size)
     }
 
+    @Test
+    fun `multiple consumers and one producer test`(){
+        val queue = Queue<Int>(10)
+        val consumedValues = ConcurrentLinkedQueue<Int>()
+        val NVALUES = 100_000
+        val nConsumers = 2
+        val count = AtomicInteger(1)
+
+        val tconsumer = (1..nConsumers).map {
+            thread {
+                while(true) {
+                    val res = queue.get()
+                    if (res < 0) break
+                    consumedValues.add(res)
+                }
+            }
+        }
+
+        val tproducer = thread {
+            repeat(NVALUES) {
+                queue.put(count.getAndIncrement())
+            }
+            repeat(nConsumers){
+                queue.put(-1)
+            }
+        }
+
+        tconsumer.forEach { it.join() }
+        tproducer.join()
+
+        assertEquals(NVALUES, consumedValues.size)
+    }
 }
