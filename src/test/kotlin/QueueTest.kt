@@ -1,5 +1,4 @@
 import org.example.Queue
-import org.junit.jupiter.api.Assertions.*
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
@@ -94,12 +93,13 @@ class QueueTests {
         val consumedValues = ConcurrentLinkedQueue<Int>()
         val NVALUES = 100_000
         val nConsumers = 2
-        val count = AtomicInteger(1)
+        //val count = AtomicInteger(1)
 
         val tconsumer = (1..nConsumers).map {
             thread {
                 while(true) {
                     val res = queue.get()
+//                    println("get $res")
                     if (res < 0) break
                     consumedValues.add(res)
                 }
@@ -108,7 +108,8 @@ class QueueTests {
 
         val tproducer = thread {
             repeat(NVALUES) {
-                queue.put(count.getAndIncrement())
+                queue.put(it)
+//                println("put $it")
             }
             repeat(nConsumers){
                 queue.put(-1)
@@ -119,5 +120,49 @@ class QueueTests {
         tproducer.join()
 
         assertEquals(NVALUES, consumedValues.size)
+    }
+
+    @Test
+    fun `multiple consumers and multiple producers test`(){
+        val queue = Queue<Int>(10)
+        val consumedValues = ConcurrentLinkedQueue<Int>()
+        val NVALUES = 100_000
+        val nConsumers = 2
+        val nProducers = 2
+        val count = AtomicInteger(1)
+
+
+        val tconsumer = (1..nConsumers).map {
+            Thread {
+                while(true) {
+                    val res = queue.get()
+                    //println("get $res")
+                    if (res < 0) break
+                    consumedValues.add(res)
+                }
+            }
+        }
+        tconsumer.forEach { it.start() }
+
+        val tproducer = (1 .. nProducers).map {
+            Thread {
+                repeat(NVALUES){
+                    queue.put(count.getAndIncrement())
+                    //println("put ${count.get()}")
+                }
+            }
+        }
+        tproducer.forEach { it.start() }
+
+        tproducer.forEach { it.join() }
+        repeat(nConsumers){
+            queue.put(-1)
+            //println("put -1")
+        }
+        tconsumer.forEach { it.join() }
+
+        assertEquals((NVALUES * nProducers), consumedValues.size)
+        assertEquals((NVALUES * nProducers), (count.get() - 1))     // -1 porque o count é incrementado cada vez que é lido
+
     }
 }
